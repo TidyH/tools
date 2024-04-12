@@ -1,11 +1,55 @@
 #!/usr/bin/env python
 # Bootstrap an AWS account with some basics
 
-import boto3
+# std library imports
+import pip
 import sys
+import json
 
-# Create/Delete iam role
-def create_admin_instance_profile(profile_name):
+# foreign libs
+# boto3
+try:
+    import boto3
+except ImportError:
+    pip.main(['install', boto3])
+    import boto3
+
+def create_admin_role_for_ec2():
+    role_name = 'admin'
+    iam = boto3.client('iam')
+
+    # Define the trust policy for the role
+    trust_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "ec2.amazonaws.com"  # EC2 service principal
+                },
+                "Action": "sts:AssumeRole"
+            }
+        ]
+    }
+
+    # Create IAM role with the trust policy
+    role_response = iam.create_role(
+        RoleName=role_name,
+        AssumeRolePolicyDocument=json.dumps(trust_policy)
+    )
+
+    # Attach AdministratorAccess policy to the role
+    iam.attach_role_policy(
+        RoleName=role_name,
+        PolicyArn='arn:aws:iam::aws:policy/AdministratorAccess'
+    )
+
+    # Print the ARN of the created role
+    print("ARN of the created role:", role_response['Role']['Arn'])
+    return role_name
+
+# Create/Delete iam instance profile
+def create_admin_instance_profile(profile_name, role_name):
     iam_client = boto3.client('iam')
 
     # Create IAM instance profile
@@ -19,13 +63,7 @@ def create_admin_instance_profile(profile_name):
     # Attach AdministratorAccess policy to the instance profile
     response_attach_policy = iam_client.add_role_to_instance_profile(
         InstanceProfileName=profile_name,
-        RoleName='AdministratorAccess'  # Assuming 'AdministratorAccess' is the name of the policy
-    )
-
-    # Attach AmazonSSMManagedInstanceCore policy to the instance profile
-    response_attach_policy = iam_client.add_role_to_instance_profile(
-        InstanceProfileName=profile_name,
-        RoleName='AmazonSSMManagedInstanceCore'  # Assuming 'AmazonSSMManagedInstanceCore' is the name of the policy
+        RoleName=role_name  # Assuming 'AdministratorAccess' is the name of the policy
     )
 
     print("Admin IAM instance profile created successfully.")
@@ -67,6 +105,8 @@ def create_ec2_instance(instance_profile_arn, ami_id, instance_type, security_gr
         SecurityGroupIds=security_group_ids,
         SubnetId=subnet_id,
         IamInstanceProfile=iam_profile,
+        MaxCount=1,
+        MinCount=1,
         UserData='#!/bin/bash\nyum update -y\n',  # Example UserData script
         TagSpecifications=[
             {
@@ -86,26 +126,29 @@ def create_ec2_instance(instance_profile_arn, ami_id, instance_type, security_gr
 
 # filter for latest ami
 def get_latest_amazon_linux_2023_ami():
-    ec2_client = boto3.client('ec2')
+    # Create SSM client
+    ssm_client = boto3.client('ssm')
+    parameter_name = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
-    # Describe Amazon Linux 2023 AMIs
-    response = ec2_client.describe_images(
-        Owners=['amazon'],
-        Filters=[
-            {'Name': 'name', 'Values': ['amzn2-ami-2023*']},
-            {'Name': 'architecture', 'Values': ['x86_64']},
-            {'Name': 'root-device-type', 'Values': ['ebs']},
-            {'Name': 'virtualization-type', 'Values': ['hvm']},
-            {'Name': 'state', 'Values': ['available']},
-        ],
-        MaxResults=1,
-        Query='Images[*].[ImageId]'
-    )
+    try:
+        # Get the parameter value
+        response = ssm_client.get_parameter(
+            Name=parameter_name,
+            WithDecryption=True  # Set to True if the parameter value is encrypted
+        )
 
-    if response['Images']:
-        return response['Images'][0]
-    else:
-        raise Exception("Could not find the latest Amazon Linux 2023 AMI.")
+        # Extract the parameter value from the response
+        parameter_value = response['Parameter']['Value']
+
+        return parameter_value
+
+    except ssm_client.exceptions.ParameterNotFound:
+        print(f"Parameter '{parameter_name}' not found.")
+        return None
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None
 
 # filter for 'default' security group
 def get_default_security_group_id():
@@ -119,7 +162,7 @@ def get_default_security_group_id():
     )
 
     if response['SecurityGroups']:
-        return response['SecurityGroups'][0]['GroupId']
+        return [response['SecurityGroups'][0]['GroupId']]
     else:
         raise Exception("Could not find the default security group.")
     
@@ -157,27 +200,37 @@ def get_subnet_id_by_name():
         raise Exception("Could not find any subnets in the specified VPC.")
 
 if __name__ == "__main__":
+    boto3.setup_default_session(region_name='us-east-1')
     if len(sys.argv) < 3:
-        print("Usage: python script_name.py <function_name> <profile_name>")
+        print("""Usage: python script_name.py <function_name> <profile_name>
+              create-iam-role
+              delete-iam-role
+              create-codecommit-repo
+              create-admin-ec2
+              """)
         sys.exit(1)
 
     function_name = sys.argv[1]
     profile_name = sys.argv[2]
 
     if function_name == 'create-iam-role':
-        create_admin_instance_profile(profile_name)
+        role_name = create_admin_role_for_ec2()
+        create_admin_instance_profile(profile_name, role_name)
     elif function_name == 'delete-iam-role':
         delete_instance_profile(profile_name)
     elif function_name == 'create-codecommit-repo':
         create_codecommit_repo(profile_name)
     elif function_name == 'create-admin-ec2':
-        instance_profile_arn = profile_name
+        instance_profile_arn = profile_name # pass in arn not name ie: arn:aws:iam::654654138626:instance-profile/admin
         ami_id = get_latest_amazon_linux_2023_ami()
         instance_type = "t3.small"
         security_group_ids = get_default_security_group_id()
         subnet_id = get_subnet_id_by_name()
 
         create_ec2_instance(instance_profile_arn, ami_id, instance_type, security_group_ids, subnet_id)
+    elif function_name == 'create-all':
+        '''Piece all individual pieces together for a single run all
+        '''
     else:
         print("Invalid function name. Supported functions: create-iam-role, delete-iam-role, create-codecommit-repo, create-admin-ec2")
         sys.exit(1)
