@@ -44,6 +44,11 @@ def create_admin_role_for_ec2():
         PolicyArn='arn:aws:iam::aws:policy/AdministratorAccess'
     )
 
+    iam.attach_role_policy(
+        RoleName=role_name,
+        PolicyArn='arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+    )
+
     # Print the ARN of the created role
     print("ARN of the created role:", role_response['Role']['Arn'])
     return role_name
@@ -63,7 +68,7 @@ def create_admin_instance_profile(profile_name, role_name):
     # Attach AdministratorAccess policy to the instance profile
     response_attach_policy = iam_client.add_role_to_instance_profile(
         InstanceProfileName=profile_name,
-        RoleName=role_name  # Assuming 'AdministratorAccess' is the name of the policy
+        RoleName=role_name
     )
 
     print("Admin IAM instance profile created successfully.")
