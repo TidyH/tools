@@ -15,41 +15,6 @@ type testTemp struct {
 	Expected []int
 }
 
-// func dailyTemperatures(temperatures []int) []int {
-// 	ans := make([]int, len(temperatures))
-
-// 	/*
-// 		recursion?
-// 		1. get current temp
-// 		2. if next temp is greater, add 1, move to the next day
-// 		3. if not, go to n+1 and add 1
-// 		4. return to step 2
-// 	*/
-
-// 	for i := range temperatures {
-// 		days := tempCheck(temperatures[i], i+1, temperatures)
-// 		if days > 0 {
-// 			ans[i] = days - i
-// 		} else {
-// 			ans[i] = 0
-// 		}
-// 	}
-
-// 	return ans
-// }
-
-// func tempCheck(cur int, idx int, temps []int) int {
-// 	if idx >= len(temps) {
-// 		return 0
-// 	}
-
-// 	if temps[idx] > cur {
-// 		return idx
-// 	}
-
-// 	return tempCheck(cur, idx+1, temps)
-// }
-
 func dailyTemperatures(temperatures []int) []int {
 	n := len(temperatures)
 	ans := make([]int, n)
