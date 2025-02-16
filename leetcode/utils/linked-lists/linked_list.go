@@ -79,3 +79,26 @@ func (ll *LinkedList) RemoveFirst() (int, bool) {
 		return removed.Val, true
 	}
 }
+
+func (ll *LinkedList) RemoveLast() (int, bool) {
+	if ll.Head == nil {
+		return 0, false
+	}
+
+	if ll.Len() == 1 {
+		removed := ll.Tail
+		ll.Head = nil
+		ll.Tail = nil
+		return removed.Val, true
+	} else {
+		var prev *ListNode
+		for curr := ll.Head; curr != ll.Tail; curr = curr.Next {
+			prev = curr
+		}
+		removed := ll.Tail
+		prev.Next = nil
+		ll.Tail = prev
+		ll.Count--
+		return removed.Val, true
+	}
+}
