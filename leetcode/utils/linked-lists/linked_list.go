@@ -102,3 +102,7 @@ func (ll *LinkedList) RemoveLast() (int, bool) {
 		return removed.Val, true
 	}
 }
+
+func (ll *LinkedList) IsEmpty() bool {
+	return ll.Head == nil
+}
