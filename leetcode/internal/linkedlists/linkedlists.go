@@ -16,8 +16,8 @@ func NewLinkedList() *LinkedList {
 	return &LinkedList{Head: nil, Tail: nil, Count: 0}
 }
 
-func (ll *LinkedList) Append(val int) {
-	newNode := &ListNode{Val: val, Next: nil}
+func (ll *LinkedList) Append(val int, next *ListNode) {
+	newNode := &ListNode{Val: val, Next: next}
 
 	if ll.Head == nil {
 		ll.Head = newNode
