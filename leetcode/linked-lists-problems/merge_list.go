@@ -1,7 +1,7 @@
 package main
 
 import (
-	"leetcode/utils/linked-lists"
+	"leetcode/internal/linkedlists"
 )
 
 func mergeTwoLists(list1 *linkedlists.ListNode, list2 *linkedlists.ListNode) *linkedlists.ListNode {
